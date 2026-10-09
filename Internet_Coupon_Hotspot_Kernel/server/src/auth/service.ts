@@ -131,20 +131,15 @@ export class AuthService {
     bootstrapToken?: string;
   }): Promise<{ user: Omit<OwnerEntity, 'passwordHash'>; token: string }> {
     const superAdminCount = await this.db.owners.countSuperAdmins();
-    const configuredToken = process.env.ADMIN_BOOTSTRAP_TOKEN;
-
-    // If an ADMIN_BOOTSTRAP_TOKEN is configured in environment, it must always be provided
-    if (configuredToken && params.bootstrapToken !== configuredToken) {
-      throw new Error('Invalid or missing administrator bootstrap token.');
+    if (superAdminCount > 0) {
+      throw new Error('System already initialized. Administrator bootstrap is closed.');
     }
 
-    // Allowed if no active SUPER_ADMIN exists OR if exact configured bootstrap token matches
-    const canBootstrap =
-      superAdminCount === 0 ||
-      (configuredToken && params.bootstrapToken && params.bootstrapToken === configuredToken);
+    const configuredToken = process.env.ADMIN_BOOTSTRAP_TOKEN;
 
-    if (!canBootstrap) {
-      throw new Error('System already initialized. Administrator bootstrap is closed.');
+    // If an ADMIN_BOOTSTRAP_TOKEN is configured in environment, it must always be provided during initial bootstrap
+    if (configuredToken && params.bootstrapToken !== configuredToken) {
+      throw new Error('Invalid or missing administrator bootstrap token.');
     }
 
     if (params.password.length < 8) {
