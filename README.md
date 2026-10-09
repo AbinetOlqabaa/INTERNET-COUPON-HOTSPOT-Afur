@@ -1,65 +1,107 @@
-# Hotspot Kernel Landing Environment
+# Internet Coupon Hotspot — Full-Stack Application
 
-Minimal, production-oriented full-stack project kernel for the proposed Android-first Internet Coupon Hotspot application.
+Production-oriented full-stack platform for the Android-first Internet Coupon Hotspot management system.
 
-## Purpose
+## Administrator Provisioning & Credential Security
 
-This project provides a clean, stable technical landing environment awaiting the upload of the authoritative `.ai` instruction pack.
+The application supports two secure administrator initialization paths:
 
-Application features (coupon generation, customer management, payment gateways, hotspot hardware controls) are intentionally not implemented in this kernel.
+1. **Environment-Driven Initialization**:
+   - Set `INITIAL_ADMIN_EMAIL` and `INITIAL_ADMIN_PASSWORD` (minimum 8 characters) in `.env`.
+   - On initial launch, the system automatically creates the primary `SUPER_ADMIN` with a unique cryptographic random salt and PBKDF2/SHA-512 hashing.
 
-## Architecture
+2. **First-Run Bootstrap (`POST /api/v1/admin/bootstrap`)**:
+   - When no administrator exists in the database, the public bootstrap endpoint is unlocked.
+   - The setup form appears in the web interface to allow the owner to establish the primary SuperAdmin credentials.
+   - An optional `ADMIN_BOOTSTRAP_TOKEN` can be required via `.env` to prevent unauthorized initial registrations.
+   - **Permanent Lock**: As soon as the first `SUPER_ADMIN` is created, `/api/v1/admin/bootstrap` closes permanently and rejects any further initialization requests.
+   - Administrators can update credentials anytime from the Admin Dashboard (**Account Security** tab).
 
-- **Frontend**: React 19, TypeScript, Tailwind CSS, Vite SPA. Mobile-first responsive layout prepared for future hybrid packaging.
-- **Backend**: Express on Node.js 22, exposing `/api/health` for uptime and diagnostic reporting.
-- **Dev Integration**: Unified `server.ts` mounting Vite middleware in development mode on port 3000.
+---
 
-## Getting Started
+## Technical Stack & Architecture
 
-### 1. Install Dependencies
-```bash
-npm install
-```
+- **Client SPA (`Internet_Coupon_Hotspot_Kernel/client`)**: React 19, TypeScript, centralized CSS design tokens (`theme.css`), responsive layouts (`styles.css`), Vite 6.
+- **API Monolith (`Internet_Coupon_Hotspot_Kernel/server`)**: Node.js 22, Express 4.x, TypeScript, Helmet security headers, CORS, Zod validation, PBKDF2/SHA-512 authentication, general ledger accounting.
+- **Unified Server Runtime (`server.ts`)**: Single entry point running on port 3000. Delegates `/api/*` to the Express backend and integrates Vite middleware in development (serving static bundle in production).
+- **Target Platform Compatibility**: Android mobile & tablet responsive layout, touch targets, and viewport metadata configured for hybrid packaging (Capacitor/PWA).
 
-### 2. Start Development Server
+---
+
+## Implemented Subsystems & Capabilities
+
+1. **Authentication & Session Management**:
+   - Cryptographic PBKDF2/SHA-512 password hashing with random salt and timing-safe comparison.
+   - Bearer session tokens with immediate revocation on logout or password change.
+   - Progressive anti-automation lockout (15 minutes after 5 consecutive failed logins).
+   - Password lifecycle: authenticated change, non-enumerating forgot-password, 15-minute single-use reset token validation.
+   - Initial administrator bootstrap (`POST /api/v1/admin/bootstrap`).
+
+2. **Multi-User & Role-Based Access Control (RBAC)**:
+   - Four distinct account tiers: `SUPER_ADMIN`, `OWNER`, `STAFF`, `CUSTOMER`.
+   - Server-side role enforcement middleware (`createRoleMiddleware`).
+   - Safeguards preventing deactivation, demotion, or deletion of the last active `SUPER_ADMIN`.
+   - Administrator console: user search, filtering by role/status, pagination, account activation/deactivation.
+
+3. **Customers & Privacy Consent**:
+   - Customer registration with consent parameters and device MAC address tracking (`/api/v1/customers`).
+   - Multi-field search (phone, name, MAC) and pagination.
+
+4. **Access Packages & Voucher Engine**:
+   - Time-based internet packages with integer minor unit pricing and duration seconds (`/api/v1/packages`).
+   - Voucher code generation with uppercase normalization, usage limits, and expiration bounds (`/api/v1/coupons`).
+   - Public customer voucher redemption validator (`POST /api/v1/coupons/validate`).
+
+5. **Payments, Counter Cash Desk & General Ledger**:
+   - `SandboxPaymentAdapter` and `ManualCashPaymentAdapter`.
+   - Replay-protected HMAC-SHA256 signed webhooks (`POST /api/v1/payments/webhooks/:provider`) with 300-second timestamp tolerance.
+   - Idempotency key protection on payment intent creation (HTTP 409 on conflict).
+   - Counter cash desk produces tamper-evident receipts (`CASH-YYYYMMDD-XXXXXX`), advances session to `payment_verified`, and posts ledger entry.
+   - Double-entry general ledger with sales, refunds, adjustments, and automated reconciliation (`GET /api/v1/payments/reconcile`).
+
+6. **Network Reality Disclosures**:
+   - Honest capability matrix: disclosures state that standard Android system hotspot mode cannot enforce per-client disconnections or traffic quotas without managed gateway hardware.
+
+---
+
+## Verified Commands & Execution
+
+### Run Full-Stack Development Server
 ```bash
 npm run dev
 ```
-Starts the unified Express server with Vite middleware at `http://0.0.0.0:3000`.
+Starts unified server on `http://0.0.0.0:3000`.
 
-### 3. Run TypeScript Checks
+### Run Test Suites
+```bash
+npm test
+```
+Executes all 96 unit, integration, PWA, and full E2E acceptance tests across 20 suites (18 server suites, 2 client suites).
+
+### TypeScript Typecheck
 ```bash
 npm run lint
 ```
-Executes `tsc --noEmit` across all client and server TypeScript files.
+Executes `tsc --noEmit` across the codebase (0 errors).
 
-### 4. Build Frontend for Production
+### Build Production Bundle
 ```bash
 npm run build
 ```
-Creates production bundle in the `dist` directory.
+Compiles and bundles the client application into `/dist`.
 
-### 5. Run Production Server
+### Production Execution
 ```bash
-npm start
+npm run start
 ```
-Starts Express server serving production static assets from `dist` and API endpoints.
 
-## Health Verification Endpoint
+---
 
-- **Endpoint**: `GET /api/health`
-- **Sample Response**:
-  ```json
-  {
-    "status": "ok",
-    "service": "hotspot-kernel-backend",
-    "timestamp": "2026-10-09T15:17:00.000Z",
-    "uptimeSeconds": 42,
-    "nodeVersion": "v22.23.2",
-    "environment": "development"
-  }
-  ```
+## Health & Diagnostic Endpoints
 
-## Next Phase
-
-Awaiting direct upload of the `.ai` ZIP archive to project root to initiate autonomous implementation.
+- `GET /api/health`: Kernel diagnostic health monitor.
+- `GET /api/v1/health`: API subsystem capability matrix.
+- `GET /api/v1`: Root module registry.
+- `GET /api/v1/admin/overview`: System and account telemetry.
+- `GET /api/v1/admin/ai/insights`: Privacy-preserving operational AI insights.
+- `GET /manifest.webmanifest`: Progressive Web App (PWA) manifest.
